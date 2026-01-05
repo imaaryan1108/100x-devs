@@ -2,6 +2,8 @@ const express = require('express');
 const userRouter = express.Router();
 const { User} = require('../db/schema');
 const { authenticateUserMiddleware } = require('../middlewares/userMiddleware');
+const jwt = require('jsonwebtoken');
+const { authenticateMiddleware } = require('../middlewares/auth');
 
 
 userRouter.post('/signup', async (req, res) => {
@@ -16,7 +18,26 @@ userRouter.post('/signup', async (req, res) => {
     }
 })
 
-userRouter.get('/courses',authenticateUserMiddleware, async (req, res) => {
+userRouter.post('signin', async (req, res) => {
+    try {
+        const { username, password } = req?.body
+        const user = await User.findOne({ username })
+        if(!user) {
+            return res?.status(403).json({ message: 'Username Incorrect' });
+        }
+        const passwordMatch = await User.find({ username, password })
+        if(!passwordMatch) {
+            return res?.status(403).json({ message: 'Password Incorrect' });
+        }
+
+        const token = jwt.sign({ username, password, role: 'User' }, process.env.JWT_SECRET)
+        res.status(200).json({ message: 'User logged in successfully', token });
+    } catch (error) {
+        res.status(500).json({ message: 'Server error' });
+    }
+})
+
+userRouter.get('/courses',authenticateMiddleware, authenticateUserMiddleware, async (req, res) => {
     try {
         const courses = await Course.find({})
         res.status(200).json({ courses });
@@ -25,7 +46,7 @@ userRouter.get('/courses',authenticateUserMiddleware, async (req, res) => {
     }
 })
 
-userRouter.post('/courses/:courseId',authenticateUserMiddleware,  async (req, res) => {
+userRouter.post('/courses/:courseId',authenticateMiddleware,authenticateUserMiddleware,  async (req, res) => {
     try {
         const courseId = req?.params?.courseId
         const course = await Course.findOne({ id: courseId })
@@ -43,7 +64,7 @@ userRouter.post('/courses/:courseId',authenticateUserMiddleware,  async (req, re
     }
 })
 
-userRouter.get('/purchasedCourses',authenticateUserMiddleware, async (req, res) => {
+userRouter.get('/purchasedCourses',authenticateMiddleware, authenticateUserMiddleware, async (req, res) => {
     try {
         const { username, password } = req?.headers;
         const user = await User.find({ username, password })

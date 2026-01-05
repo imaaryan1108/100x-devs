@@ -3,6 +3,8 @@ const express = require('express');
 const adminRouter = express.Router();
 const { Admin, Course } = require('../db/schema');
 const { adminAuthenticateMiddleware } = require('../middlewares/adminMiddleware');
+const jwt = require('jsonwebtoken');
+const { authenticateMiddleware } = require('../middlewares/auth');
 
 adminRouter.post('/signup', async (req, res) => {
     try {
@@ -18,7 +20,31 @@ adminRouter.post('/signup', async (req, res) => {
         res.status(500).json({ message: 'Server error' });
     }
 })
-adminRouter.post('/courses', adminAuthenticateMiddleware, async (req, res) => {
+
+adminRouter.post('/signin', async (req, res) => {
+    try {
+        const { username, password } = req?.body
+        const admin = await Admin.findOne({ username })
+        if (!admin) {
+            return res?.status(403).json({ message: 'Username Incorrect' });
+        }
+        const passwordMatch = await Admin.findOne({ username, password })
+        if (!passwordMatch) {
+            return res?.status(403).json({ message: 'Password Incorrect' });
+        }
+
+        const token = jwt.sign({ username, password, role: 'Admin' }, process.env.JWT_SECRET)
+        res.status(200).json({ message: 'Admin logged in successfully', token });
+
+
+    } catch (error) {
+        res.status(500).json({ message: 'Server error' });
+    }
+})
+
+
+
+adminRouter.post('/courses', authenticateMiddleware , adminAuthenticateMiddleware, async (req, res) => {
     try {
         
         const { title, description, price, imageUrl } = req?.body;
@@ -30,7 +56,7 @@ adminRouter.post('/courses', adminAuthenticateMiddleware, async (req, res) => {
     }
 })
 
-adminRouter.get('/courses', adminAuthenticateMiddleware, async (req, res) => {
+adminRouter.get('/courses',authenticateMiddleware, adminAuthenticateMiddleware, async (req, res) => {
     try {
         const courses = await Course.find({})
         res.status(200).json({ courses });
